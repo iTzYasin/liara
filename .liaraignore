@@ -1,0 +1,9 @@
+.git
+.next
+node_modules
+liara-docs
+playwright-report
+test-results
+coverage
+.env*
+npm-debug.log*

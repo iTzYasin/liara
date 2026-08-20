@@ -1,0 +1,14 @@
+[
+  { "query": "چطور دامنه اختصاصی را به برنامه وصل کنم؟", "expectedService": "paas" },
+  { "query": "تنظیم متغیر محیطی برای برنامه Docker", "expectedService": "paas" },
+  { "query": "استقرار پروژه Next.js و تنظیم دستور build", "expectedService": "paas" },
+  { "query": "چطور از دیتابیس MongoDB بکاپ بگیرم؟", "expectedService": "dbaas" },
+  { "query": "اتصال برنامه Node.js به دیتابیس Redis", "expectedService": "dbaas" },
+  { "query": "اتصال SSH به سرور ابری", "expectedService": "iaas" },
+  { "query": "ساخت باکت و آپلود فایل در فضای ذخیره سازی", "expectedService": "object-storage" },
+  { "query": "تنظیم SMTP و ارسال ایمیل", "expectedService": "email-server" },
+  { "query": "راه اندازی برنامه آماده WordPress", "expectedService": "one-click-apps" },
+  { "query": "مدیریت رکورد DNS دامنه", "expectedService": "dns-management-system" },
+  { "query": "ساخت سرویس هوش مصنوعی و مدل AI", "expectedService": "ai" },
+  { "query": "تنظیم فایروال سرور ابری", "expectedService": "iaas" }
+]
