@@ -33,6 +33,7 @@ interface StoredMockUser extends MockUser {
 }
 
 const encoder = new TextEncoder();
+const mockUserIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -50,7 +51,9 @@ function toPublicUser(user: StoredMockUser): MockUser {
 function isStoredMockUser(value: unknown): value is StoredMockUser {
   if (!value || typeof value !== "object") return false;
   const user = value as Record<string, unknown>;
-  return ["id", "name", "email", "createdAt", "passwordSalt", "passwordDigest"]
+  return typeof user.id === "string"
+    && mockUserIdPattern.test(user.id)
+    && ["name", "email", "createdAt", "passwordSalt", "passwordDigest"]
     .every((key) => typeof user[key] === "string" && user[key].length > 0);
 }
 
@@ -62,7 +65,7 @@ function fromBase64(value: string) {
   return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
 }
 
-async function derivePassword(password: string, salt: Uint8Array) {
+async function derivePassword(password: string, salt: Uint8Array<ArrayBuffer>) {
   if (!globalThis.crypto?.subtle) {
     throw new MockAuthError("crypto-unavailable", "امکان ساخت حساب نمایشی در این مرورگر وجود ندارد.");
   }

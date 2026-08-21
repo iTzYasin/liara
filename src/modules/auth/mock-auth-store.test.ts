@@ -60,4 +60,19 @@ describe("MockAuthStore", () => {
     expect(store.currentUser()).toBeUndefined();
     expect(localStorage.getItem(MOCK_AUTH_SESSION_KEY)).toBeNull();
   });
+
+  it("rejects a stored account with an invalid owner identifier", () => {
+    localStorage.setItem(MOCK_AUTH_USERS_KEY, JSON.stringify([{
+      id: "broken-owner",
+      name: "کاربر خراب",
+      email: "broken@example.com",
+      createdAt: "2026-08-21T00:00:00.000Z",
+      passwordSalt: "dGVzdA==",
+      passwordDigest: "dGVzdA==",
+    }]));
+    localStorage.setItem(MOCK_AUTH_SESSION_KEY, "broken-owner");
+
+    expect(store.currentUser()).toBeUndefined();
+    expect(localStorage.getItem(MOCK_AUTH_SESSION_KEY)).toBeNull();
+  });
 });
