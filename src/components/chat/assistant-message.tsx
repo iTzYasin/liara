@@ -4,14 +4,27 @@ import { Children, isValidElement, ReactNode, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { SourceDocument, StoredMessage } from "@/modules/chat/types";
-import { Check, Clipboard, ExternalLink, FileSearch, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
+import {
+  Check,
+  Clipboard,
+  ExternalLink,
+  FileSearch,
+  RotateCcw,
+  Send,
+  Ticket,
+  ThumbsDown,
+  ThumbsUp,
+} from "lucide-react";
 import type { FeedbackReason } from "@/modules/observability/metrics";
+import { SourceReference } from "@/components/chat/source-reference";
+import { useStreamingReveal } from "@/components/chat/use-streaming-reveal";
 
 interface AssistantMessageProps {
   message: StoredMessage;
   status?: string;
-  onSourceOpen: (source: SourceDocument) => void;
   onRetry: (messageId: string) => void;
+  onOpenSources?: (source: SourceDocument) => void;
+  sourcePanelOpen?: boolean;
 }
 
 function withCitationLinks(content: string, sources: SourceDocument[]) {
@@ -52,19 +65,89 @@ function CodeFrame({ children }: { children?: ReactNode }) {
   );
 }
 
-function confidenceCopy(confidence?: string) {
+function confidenceCopy(confidence: string | undefined, intent: string | undefined, sourceCount: number) {
+  if (intent === "social" || intent === "out-of-scope") return undefined;
+  if (confidence === "high" && sourceCount === 0) return undefined;
   if (confidence === "high") return "شواهد مستند قوی";
   if (confidence === "medium") return "پاسخ با فرض محدود";
   if (confidence === "low") return "شواهد ناکافی";
   return undefined;
 }
 
-export function AssistantMessage({ message, status, onSourceOpen, onRetry }: AssistantMessageProps) {
+function TicketDraftCard({ message }: { message: StoredMessage }) {
+  const [copied, setCopied] = useState(false);
+  const ticket = message.ticket;
+  if (!ticket) return null;
+  const integrationNoteId = `ticket-integration-${message.id}`;
+
+  return (
+    <section className="ticket-draft" aria-label="پیش‌نویس تیکت پشتیبانی">
+      <div className="ticket-draft-heading">
+        <span><Ticket size={17} aria-hidden="true" /></span>
+        <div>
+          <strong>پیش‌نویس تیکت آماده است</strong>
+          <small>موضوع و متن براساس همین گفتگو آماده شده است.</small>
+        </div>
+      </div>
+      <div className="ticket-draft-content">
+        <span>موضوع</span>
+        <strong>{ticket.draft.subject}</strong>
+        <span>متن تیکت</span>
+        <p>{ticket.draft.body}</p>
+      </div>
+      <div className="ticket-draft-actions">
+        <button
+          type="button"
+          className="ticket-copy"
+          onClick={() => {
+            void navigator.clipboard.writeText(`${ticket.draft.subject}\n\n${ticket.draft.body}`);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1_500);
+          }}
+        >
+          {copied ? <Check size={15} /> : <Clipboard size={15} />}
+          {copied ? "کپی شد" : "کپی تیکت"}
+        </button>
+        <button
+          type="button"
+          className="ticket-submit"
+          disabled
+          aria-describedby={integrationNoteId}
+        >
+          <Send size={16} />
+          ارسال تیکت
+        </button>
+      </div>
+      <div className="ticket-state is-pending" id={integrationNoteId} role="note">
+        <span>
+          اتصال دکمه به سامانه تیکت در مرحله بعد انجام می‌شود؛ فعلاً هیچ درخواستی ارسال نمی‌شود.
+        </span>
+      </div>
+    </section>
+  );
+}
+
+export function AssistantMessage({
+  message,
+  status,
+  onRetry,
+  onOpenSources,
+  sourcePanelOpen = false,
+}: AssistantMessageProps) {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down">();
   const [feedbackReasonOpen, setFeedbackReasonOpen] = useState(false);
   const sources = message.sources ?? [];
-  const content = withCitationLinks(message.content, sources);
+  const confidenceLabel = confidenceCopy(
+    message.meta?.confidence,
+    message.meta?.intent,
+    sources.length,
+  );
+  const { visibleText, isRevealing } = useStreamingReveal(
+    message.content,
+    message.status === "streaming",
+  );
+  const content = withCitationLinks(visibleText, sources);
 
   const sendFeedback = (rating: "up" | "down", reason?: FeedbackReason) => {
     setFeedback(rating);
@@ -78,7 +161,10 @@ export function AssistantMessage({ message, status, onSourceOpen, onRetry }: Ass
   };
 
   return (
-    <article className={`assistant-turn ${message.status === "error" ? "has-error" : ""}`}>
+    <article
+      className={`assistant-turn ${message.status === "error" ? "has-error" : ""}`}
+      role={message.status === "error" ? "alert" : undefined}
+    >
       <div className="evidence-spine" aria-hidden="true">
         <span>{sources.length ? sources.length.toLocaleString("fa-IR") : "•"}</span>
       </div>
@@ -87,13 +173,11 @@ export function AssistantMessage({ message, status, onSourceOpen, onRetry }: Ass
         <div className="assistant-kicker">
           <span className="assistant-mark">L</span>
           <strong>دستیار لیارا</strong>
-          {confidenceCopy(message.meta?.confidence) && (
-            <small>{confidenceCopy(message.meta?.confidence)}</small>
-          )}
+          {confidenceLabel && <small>{confidenceLabel}</small>}
         </div>
 
         {message.content ? (
-          <div className="markdown-body">
+          <div className="markdown-body" dir="auto" aria-busy={isRevealing}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
@@ -102,9 +186,15 @@ export function AssistantMessage({ message, status, onSourceOpen, onRetry }: Ass
                   const source = sources.find((item) => item.url === href);
                   if (source) {
                     return (
-                      <button className="inline-citation" onClick={() => onSourceOpen(source)} title={source.title}>
-                        {children}
-                      </button>
+                      <SourceReference source={source}>
+                        <button
+                          type="button"
+                          className="inline-citation"
+                          aria-label={`مشاهده منبع ${source.citationIndex.toLocaleString("fa-IR")}: ${source.title}`}
+                        >
+                          {children}
+                        </button>
+                      </SourceReference>
                     );
                   }
                   return (
@@ -120,7 +210,7 @@ export function AssistantMessage({ message, status, onSourceOpen, onRetry }: Ass
             >
               {content}
             </ReactMarkdown>
-            {message.status === "streaming" && <span className="stream-caret" aria-label="در حال نوشتن" />}
+            {isRevealing && <span className="stream-caret" aria-hidden="true" />}
           </div>
         ) : (
           <div className="answer-skeleton">
@@ -130,27 +220,51 @@ export function AssistantMessage({ message, status, onSourceOpen, onRetry }: Ass
 
         {status && message.status === "streaming" && (
           <div className="agent-status">
-            <span className="status-pulse" />
+            <span className="status-pulse" aria-hidden="true" />
             {status}
           </div>
         )}
 
-        {sources.length > 0 && message.status !== "streaming" && (
+        <span className="sr-only" role="status" aria-live="polite">
+          {isRevealing ? "دستیار در حال نوشتن پاسخ است" : ""}
+        </span>
+
+        {sources.length > 0 && !isRevealing && (
           <div className="message-sources">
             <div className="message-sources-title"><FileSearch size={16} />منابع استفاده‌شده</div>
             <div className="source-chip-row">
               {sources.slice(0, 4).map((source) => (
-                <button key={source.id} onClick={() => onSourceOpen(source)}>
-                  <span>{source.citationIndex.toLocaleString("fa-IR")}</span>
-                  <span>{source.title}</span>
-                </button>
+                <SourceReference source={source} key={source.id}>
+                  <button
+                    type="button"
+                    aria-label={`مشاهده منبع ${source.citationIndex.toLocaleString("fa-IR")}: ${source.title}`}
+                  >
+                    <span>{source.citationIndex.toLocaleString("fa-IR")}</span>
+                    <span>{source.title}</span>
+                  </button>
+                </SourceReference>
               ))}
-              {sources.length > 4 && <span className="more-sources">+{(sources.length - 4).toLocaleString("fa-IR")}</span>}
+              {sources.length > 4 && (
+                <button
+                  type="button"
+                  className="more-sources"
+                  aria-label={`مشاهده هر ${sources.length.toLocaleString("fa-IR")} منبع در پنل منابع`}
+                  aria-controls="source-panel"
+                  aria-expanded={sourcePanelOpen}
+                  onClick={() => onOpenSources?.(sources[4])}
+                >
+                  +{(sources.length - 4).toLocaleString("fa-IR")}
+                </button>
+              )}
             </div>
           </div>
         )}
 
-        {message.status !== "streaming" && (
+        {!isRevealing && (
+      <TicketDraftCard message={message} />
+        )}
+
+        {!isRevealing && (
           <div className="message-actions">
             <button
               onClick={() => {

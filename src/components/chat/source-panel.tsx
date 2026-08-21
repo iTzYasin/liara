@@ -25,15 +25,33 @@ const serviceNames: Record<string, string> = {
 };
 
 export function SourcePanel({ open, sources, selected, onSelect, onClose }: SourcePanelProps) {
-  useEffect(() => {
-    if (open && !selected && sources[0]) onSelect(sources[0]);
-  }, [onSelect, open, selected, sources]);
+  const active = selected && sources.some((source) => source.id === selected.id)
+    ? selected
+    : sources[0];
 
-  const active = selected ?? sources[0];
+  useEffect(() => {
+    if (open && active && active.id !== selected?.id) onSelect(active);
+  }, [active, onSelect, open, selected?.id]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose, open]);
+
   return (
     <>
       {open && <button className="source-scrim" onClick={onClose} aria-label="بستن منابع" />}
-      <aside className={`source-panel ${open ? "is-open" : ""}`} aria-label="منابع پاسخ">
+      <aside
+        id="source-panel"
+        className={`source-panel ${open ? "is-open" : ""}`}
+        aria-label="منابع پاسخ"
+        aria-hidden={!open}
+        inert={!open}
+      >
         <header className="source-panel-header">
           <div>
             <BookOpenText size={18} />
@@ -48,9 +66,15 @@ export function SourcePanel({ open, sources, selected, onSelect, onClose }: Sour
             <section className="source-preview">
               <div className="source-breadcrumb">
                 <Layers3 size={14} />
-                {serviceNames[active.service] ?? active.service}
-                <ArrowUpLeft size={12} />
-                {active.heading}
+                {(active.breadcrumb?.length
+                  ? active.breadcrumb
+                  : [serviceNames[active.service] ?? active.service, active.heading]
+                ).map((item, index, items) => (
+                  <span key={`${item}-${index}`}>
+                    {item}
+                    {index < items.length - 1 && <ArrowUpLeft size={12} />}
+                  </span>
+                ))}
               </div>
               <span className="source-index">منبع {active.citationIndex.toLocaleString("fa-IR")}</span>
               <h2>{active.title}</h2>
@@ -68,11 +92,13 @@ export function SourcePanel({ open, sources, selected, onSelect, onClose }: Sour
                   key={source.id}
                   className={active.id === source.id ? "is-active" : ""}
                   onClick={() => onSelect(source)}
+                  aria-pressed={active.id === source.id}
+                  aria-label={`انتخاب منبع ${source.citationIndex.toLocaleString("fa-IR")}: ${source.title}`}
                 >
                   <span className="source-list-index">{source.citationIndex.toLocaleString("fa-IR")}</span>
                   <span>
                     <strong>{source.title}</strong>
-                    <small>{source.heading}</small>
+                    <small>{source.breadcrumb?.join(" ← ") ?? source.heading}</small>
                   </span>
                 </button>
               ))}

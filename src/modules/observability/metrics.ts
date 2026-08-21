@@ -12,7 +12,7 @@ export type MetricEvent =
       invalidCitationCount: number;
       redactionCount: number;
       confidence: "high" | "medium" | "low";
-      outcome: "answer" | "clarification" | "escalation";
+      outcome: "answer" | "clarification" | "escalation" | "conversation";
       retrievalCacheHit: boolean;
       responseCacheEligible: boolean;
       responseCacheHit: boolean;
@@ -138,6 +138,8 @@ export class MetricsRegistry {
 
   snapshot(): MetricsSnapshot {
     const successful = this.turns.length;
+    const knowledgeTurns = this.turns.filter((turn) => turn.outcome !== "conversation");
+    const knowledgeSuccessful = knowledgeTurns.length;
     const total = successful + this.failedRequests;
     const firstToken = this.turns
       .map((turn) => turn.firstTokenLatencyMs)
@@ -146,8 +148,8 @@ export class MetricsRegistry {
     const outputTokens = this.turns.reduce((sum, turn) => sum + turn.outputTokens, 0);
     const retrievalHits = this.turns.filter((turn) => turn.retrievalCacheHit).length;
     const responseHits = this.turns.filter((turn) => turn.responseCacheHit).length;
-    const cacheOpportunities = successful
-      + this.turns.filter((turn) => turn.responseCacheEligible).length;
+    const cacheOpportunities = knowledgeSuccessful
+      + knowledgeTurns.filter((turn) => turn.responseCacheEligible).length;
     const inputUsd = Number(process.env.GEMINI_INPUT_USD_PER_MILLION ?? 0.3);
     const outputUsd = Number(process.env.GEMINI_OUTPUT_USD_PER_MILLION ?? 2.5);
     const feedbackTotal = this.positiveFeedback + this.negativeFeedback;
@@ -189,13 +191,13 @@ export class MetricsRegistry {
         hitRate: ratio(retrievalHits + responseHits, cacheOpportunities),
       },
       quality: {
-        averageSources: successful
-          ? rounded(this.turns.reduce((sum, turn) => sum + turn.sourceCount, 0) / successful)
+        averageSources: knowledgeSuccessful
+          ? rounded(knowledgeTurns.reduce((sum, turn) => sum + turn.sourceCount, 0) / knowledgeSuccessful)
           : 0,
-        noResultRate: ratio(this.turns.filter((turn) => turn.sourceCount === 0).length, successful),
-        clarificationRate: ratio(this.turns.filter((turn) => turn.outcome === "clarification").length, successful),
-        escalationRate: ratio(this.turns.filter((turn) => turn.outcome === "escalation").length, successful),
-        highConfidenceRate: ratio(this.turns.filter((turn) => turn.confidence === "high").length, successful),
+        noResultRate: ratio(knowledgeTurns.filter((turn) => turn.sourceCount === 0).length, knowledgeSuccessful),
+        clarificationRate: ratio(knowledgeTurns.filter((turn) => turn.outcome === "clarification").length, knowledgeSuccessful),
+        escalationRate: ratio(knowledgeTurns.filter((turn) => turn.outcome === "escalation").length, knowledgeSuccessful),
+        highConfidenceRate: ratio(knowledgeTurns.filter((turn) => turn.confidence === "high").length, knowledgeSuccessful),
         citationValidityRate: citationCount
           ? ratio(citationCount - invalidCitationCount, citationCount)
           : 100,

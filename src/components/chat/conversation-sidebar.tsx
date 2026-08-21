@@ -1,29 +1,42 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Conversation } from "@/modules/chat/types";
-import { Activity, BookOpenText, Check, Download, MessageSquareText, Moon, Pencil, Plus, Search, Sun, Trash2, X } from "lucide-react";
+import type { WorkspaceUser } from "@/modules/chat/types";
+import { Check, Download, Ellipsis, LoaderCircle, LogOut, MessageSquareText, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ConversationSidebarProps {
   open: boolean;
   conversations: Conversation[];
   activeId?: string;
+  pendingConversationIds: ReadonlySet<string>;
   onClose: () => void;
   onNew: () => void;
   onSelect: (id: string) => void;
   onRemove: (id: string) => void;
   onRename: (id: string, title: string) => void;
-  onExport: () => void;
-  canExport: boolean;
-  onOpenQuality: () => void;
-}
-
-interface DocsStatus {
-  ready: boolean;
-  documents: number;
-  chunks: number;
-  sourceCommit: string;
-  generatedAt?: string;
+  onExport: (conversation: Conversation) => void;
+  user: WorkspaceUser;
+  onLogout: () => void;
+  accountActionLabel?: string;
 }
 
 function relativeDate(value: string) {
@@ -39,20 +52,23 @@ export function ConversationSidebar({
   open,
   conversations,
   activeId,
+  pendingConversationIds,
   onClose,
   onNew,
   onSelect,
   onRemove,
   onRename,
   onExport,
-  canExport,
-  onOpenQuality,
+  user,
+  onLogout,
+  accountActionLabel = "خروج از حساب",
 }: ConversationSidebarProps) {
-  const [docs, setDocs] = useState<DocsStatus>();
   const [renamingId, setRenamingId] = useState<string>();
   const [draftTitle, setDraftTitle] = useState("");
   const [query, setQuery] = useState("");
-  const [dark, setDark] = useState(false);
+  const [overlayMode, setOverlayMode] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Conversation>();
+  const actionTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const filteredConversations = useMemo(() => {
     const normalized = query
@@ -78,31 +94,22 @@ export function ConversationSidebar({
   };
 
   useEffect(() => {
-    fetch("/api/docs/status")
-      .then((response) => response.json())
-      .then(setDocs)
-      .catch(() => undefined);
+    const query = window.matchMedia("(max-width: 840px)");
+    const update = () => setOverlayMode(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
   }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("liara-assistant-theme");
-    const shouldUseDark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
-    document.documentElement.dataset.theme = shouldUseDark ? "dark" : "light";
-    const frame = window.requestAnimationFrame(() => setDark(shouldUseDark));
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  const toggleTheme = () => {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.dataset.theme = next ? "dark" : "light";
-    localStorage.setItem("liara-assistant-theme", next ? "dark" : "light");
-  };
 
   return (
     <>
       {open && <button className="sidebar-scrim" onClick={onClose} aria-label="بستن تاریخچه" />}
-      <aside className={`conversation-sidebar ${open ? "is-open" : ""}`} aria-label="تاریخچه گفتگوها">
+      <aside
+        className={`conversation-sidebar ${open ? "is-open" : ""}`}
+        aria-label="تاریخچه گفتگوها"
+        aria-hidden={overlayMode && !open}
+        inert={overlayMode && !open}
+      >
         <div className="brand-lockup">
           {/* SVG محلی و کوچک است؛ بهینه‌سازی تصویری Next برای آن ارزش افزوده‌ای ندارد. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -121,10 +128,10 @@ export function ConversationSidebar({
           </button>
         </div>
 
-        <button className="new-chat-button" onClick={onNew}>
+        <button className="new-chat-button" onClick={onNew} aria-keyshortcuts="Alt+N">
           <Plus size={18} />
           گفتگوی جدید
-          <kbd>Ctrl N</kbd>
+          <kbd>Alt N</kbd>
         </button>
 
         <div className="conversation-search">
@@ -134,11 +141,10 @@ export function ConversationSidebar({
         </div>
 
         <div className="sidebar-section-label">
-          <span>گفتگوهای این دستگاه</span>
-          <span>{filteredConversations.length.toLocaleString("fa-IR")}{query ? ` از ${conversations.length.toLocaleString("fa-IR")}` : ""}</span>
+          <span>گفتگوها</span>
         </div>
 
-        <nav className="conversation-list">
+        <nav className="conversation-list" aria-label="فهرست گفتگوهای ذخیره‌شده">
           {filteredConversations.length === 0 ? (
             <div className="conversation-empty">
               <MessageSquareText size={20} />
@@ -171,59 +177,119 @@ export function ConversationSidebar({
                     <button type="submit" aria-label="ذخیره نام"><Check size={14} /></button>
                   </form>
                 ) : (
-                  <button className="conversation-select" onClick={() => onSelect(conversation.id)}>
-                    <span>{conversation.title}</span>
+                  <button
+                    className="conversation-select"
+                    onClick={() => onSelect(conversation.id)}
+                    aria-current={activeId === conversation.id ? "page" : undefined}
+                    aria-label={conversation.title}
+                  >
+                    <span className="conversation-title">
+                      {pendingConversationIds.has(conversation.id) && (
+                        <span
+                          className="conversation-progress"
+                          role="status"
+                          aria-label={`گفتگوی «${conversation.title}» در حال دریافت پاسخ است`}
+                          title="در حال دریافت پاسخ"
+                        >
+                          <LoaderCircle size={13} aria-hidden="true" />
+                        </span>
+                      )}
+                      <span className="conversation-title-text">{conversation.title}</span>
+                    </span>
                     <small>{relativeDate(conversation.updatedAt)}</small>
                   </button>
                 )}
                 <div className="conversation-actions">
-                  <button
-                    className="conversation-edit"
-                    onClick={() => {
-                      setDraftTitle(conversation.title);
-                      setRenamingId(conversation.id);
-                    }}
-                    aria-label={`تغییر نام ${conversation.title}`}
-                    title="تغییر نام"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    className="conversation-delete"
-                    onClick={() => {
-                      if (window.confirm(`گفتگوی «${conversation.title}» حذف شود؟`)) onRemove(conversation.id);
-                    }}
-                    aria-label={`حذف ${conversation.title}`}
-                    title="حذف گفتگو"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="conversation-menu-trigger"
+                        aria-label={`گزینه‌های گفتگوی ${conversation.title}`}
+                        title="گزینه‌های گفتگو"
+                        onFocus={(event) => { actionTriggerRef.current = event.currentTarget; }}
+                        onPointerDown={(event) => { actionTriggerRef.current = event.currentTarget; }}
+                      >
+                        <Ellipsis size={17} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" sideOffset={6} className="w-44 p-1.5 font-sans">
+                      <DropdownMenuItem
+                        className="px-2.5 py-2 text-xs"
+                        onSelect={() => {
+                          setDraftTitle(conversation.title);
+                          setRenamingId(conversation.id);
+                        }}
+                      >
+                        <Pencil />
+                        تغییر نام
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="px-2.5 py-2 text-xs"
+                        disabled={conversation.messages.length === 0}
+                        onSelect={() => onExport(conversation)}
+                      >
+                        <Download />
+                        دریافت خروجی
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        variant="destructive"
+                        className="px-2.5 py-2 text-xs"
+                        onSelect={() => setPendingDelete(conversation)}
+                      >
+                        <Trash2 />
+                        حذف گفتگو
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             ))
           )}
         </nav>
 
+        <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => { if (!open) setPendingDelete(undefined); }}>
+          <AlertDialogContent
+            className="w-[calc(100%-2rem)] border border-border shadow-2xl"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              window.requestAnimationFrame(() => actionTriggerRef.current?.focus());
+            }}
+          >
+            <AlertDialogHeader>
+              <AlertDialogMedia className="bg-destructive/10 text-destructive ring-1 ring-destructive/15">
+                <Trash2 aria-hidden="true" />
+              </AlertDialogMedia>
+              <AlertDialogTitle>حذف گفتگو؟</AlertDialogTitle>
+              <AlertDialogDescription>
+                گفتگوی «{pendingDelete?.title}» برای همیشه از این دستگاه پاک می‌شود و امکان بازگرداندن آن وجود ندارد.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>انصراف</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                className="bg-destructive font-semibold text-white hover:bg-destructive/90"
+                onClick={() => { if (pendingDelete) onRemove(pendingDelete.id); }}
+              >
+                <Trash2 aria-hidden="true" />
+                حذف گفتگو
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <div className="sidebar-footer">
-          <div className="sidebar-utility-row">
-            <button onClick={onOpenQuality}><Activity size={15} />گزارش کیفیت</button>
-            <button onClick={onExport} disabled={!canExport}><Download size={15} />خروجی گفتگو</button>
-            <button onClick={toggleTheme} aria-label={dark ? "فعال‌کردن تم روشن" : "فعال‌کردن تم تاریک"} title={dark ? "تم روشن" : "تم تاریک"}>
-              {dark ? <Sun size={15} /> : <Moon size={15} />}
+          <div className="sidebar-account">
+            <span className="sidebar-account-avatar" aria-hidden="true">{user.name.trim().charAt(0) || "ک"}</span>
+            <div className="sidebar-account-copy">
+              <strong>{user.name}</strong>
+              <small dir="ltr">{user.email}</small>
+            </div>
+            <button className="sidebar-account-logout" type="button" onClick={onLogout} aria-label={accountActionLabel} title={accountActionLabel}>
+              <LogOut size={17} aria-hidden="true" />
             </button>
           </div>
-          <div className="index-status">
-            <BookOpenText size={17} />
-            <div>
-              <span>{docs?.ready ? "ایندکس داک آماده است" : "در حال بررسی ایندکس"}</span>
-              <small>
-                {docs?.documents
-                  ? `${docs.documents.toLocaleString("fa-IR")} سند · نسخه ${docs.sourceCommit}`
-                  : "منبع: مستندات رسمی لیارا"}
-              </small>
-            </div>
-          </div>
-          <p>گفتگوها فقط روی همین دستگاه و پس از پاک‌سازی ذخیره می‌شوند.</p>
         </div>
       </aside>
     </>

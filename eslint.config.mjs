@@ -7,6 +7,7 @@ export default defineConfig([
   ...nextTypescript,
   globalIgnores([
     ".next/**",
+    ".next-e2e/**",
     "node_modules/**",
     "liara-docs/**",
     "data/liara-docs-index.json",

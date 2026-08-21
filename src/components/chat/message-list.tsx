@@ -8,13 +8,23 @@ import { ArrowDown, FileText, ShieldCheck } from "lucide-react";
 interface MessageListProps {
   messages: StoredMessage[];
   status?: string;
-  onSourceOpen: (source: SourceDocument) => void;
   onRetry: (messageId: string) => void;
+  onOpenSources: (source: SourceDocument) => void;
+  sourcePanelOpen: boolean;
   scrollToLatestSignal: number;
 }
 
-export function MessageList({ messages, status, onSourceOpen, onRetry, scrollToLatestSignal }: MessageListProps) {
+export function MessageList({
+  messages,
+  status,
+  onRetry,
+  onOpenSources,
+  sourcePanelOpen,
+  scrollToLatestSignal,
+}: MessageListProps) {
   const viewport = useRef<HTMLDivElement>(null);
+  const thread = useRef<HTMLDivElement>(null);
+  const nearBottomRef = useRef(true);
   const [nearBottom, setNearBottom] = useState(true);
   const lastContent = messages.at(-1)?.content;
 
@@ -22,6 +32,7 @@ export function MessageList({ messages, status, onSourceOpen, onRetry, scrollToL
     const element = viewport.current;
     if (!element) return;
     element.scrollTo({ top: element.scrollHeight, behavior });
+    nearBottomRef.current = true;
     setNearBottom(true);
   }, []);
 
@@ -33,16 +44,28 @@ export function MessageList({ messages, status, onSourceOpen, onRetry, scrollToL
     if (scrollToLatestSignal > 0) scrollToBottom("auto");
   }, [scrollToLatestSignal, scrollToBottom]);
 
+  useEffect(() => {
+    const content = thread.current;
+    if (!content || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (nearBottomRef.current) scrollToBottom("auto");
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [scrollToBottom]);
+
   return (
     <div
       className="message-viewport"
       ref={viewport}
       onScroll={(event) => {
         const element = event.currentTarget;
-        setNearBottom(element.scrollHeight - element.scrollTop - element.clientHeight < 140);
+        const nextNearBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 140;
+        nearBottomRef.current = nextNearBottom;
+        setNearBottom(nextNearBottom);
       }}
     >
-      <div className="message-thread">
+      <div className="message-thread" ref={thread}>
         {messages.map((message, index) => {
           if (message.role === "user") {
             return (
@@ -70,8 +93,9 @@ export function MessageList({ messages, status, onSourceOpen, onRetry, scrollToL
               key={message.id}
               message={message}
               status={isLast ? status : undefined}
-              onSourceOpen={onSourceOpen}
               onRetry={onRetry}
+              onOpenSources={onOpenSources}
+              sourcePanelOpen={sourcePanelOpen}
             />
           );
         })}

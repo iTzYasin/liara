@@ -29,4 +29,18 @@ describe("redactSensitiveText", () => {
     expect(result.text).toBe("[SECRET_1]");
     expect(result.categories).toContain("private-key");
   });
+
+  it("masks sensitive environment variables with service prefixes", () => {
+    const result = redactSensitiveText([
+      "AWS_SECRET_ACCESS_KEY=seeded-object-secret",
+      "SMTP_PASSWORD=seeded-mail-secret",
+      "LIARA_TOKEN=seeded-cli-token",
+    ].join("\n"));
+
+    expect(result.text).not.toMatch(/seeded-(?:object|mail|cli)-secret/);
+    expect(result.text).toContain("AWS_SECRET_ACCESS_KEY=[SECRET_");
+    expect(result.text).toContain("SMTP_PASSWORD=[SECRET_");
+    expect(result.text).toContain("LIARA_TOKEN=[SECRET_");
+    expect(result.count).toBe(3);
+  });
 });

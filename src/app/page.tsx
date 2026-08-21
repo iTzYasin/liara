@@ -1,5 +1,13 @@
-import { ChatWorkspace } from "@/components/chat/chat-workspace";
+import type { Metadata } from "next";
+import { connection } from "next/server";
+import { DocsPreview } from "@/components/demo/docs-preview";
 
-export default function Home() {
-  return <ChatWorkspace />;
+export const metadata: Metadata = {
+  title: "مستندات لیارا",
+  description: "مستندات سرویس‌های ابری لیارا و دسترسی مستقیم به دستیار مستندات.",
+};
+
+export default async function Home() {
+  await connection();
+  return <DocsPreview />;
 }

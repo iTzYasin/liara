@@ -29,6 +29,10 @@ await execFileAsync(process.execPath, [path.join(root, "scripts", "build-docs-in
   cwd: root,
   env: process.env,
 });
+await execFileAsync(process.execPath, [path.join(root, "scripts", "build-golden-set.mjs")], {
+  cwd: root,
+  env: process.env,
+});
 
 const { stdout: commit } = await execFileAsync("git", ["-C", repository, "rev-parse", "--short=7", "HEAD"]);
 console.log(`Docs sync completed atomically at ${commit.trim()}.`);

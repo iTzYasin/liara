@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isPublicCacheableRequest, ResponseCache } from "@/modules/agent/response-cache";
+import {
+  isPublicCacheableRequest,
+  ResponseCache,
+  responseCacheKey,
+} from "@/modules/agent/response-cache";
 import type { ChatRequest } from "@/modules/chat/types";
 
 const base: ChatRequest = {
@@ -24,5 +28,12 @@ describe("response cache policy", () => {
     const cache = new ResponseCache(2, 1_000);
     cache.set("key", { text: "پاسخ مستند" });
     expect(cache.get("key")?.text).toBe("پاسخ مستند");
+  });
+
+  it("partitions reusable answers by the language selected by the model", () => {
+    const persian = responseCacheKey("Next step?", ["source-1"], "model", "fa");
+    const russian = responseCacheKey("Next step?", ["source-1"], "model", "ru");
+
+    expect(persian).not.toBe(russian);
   });
 });

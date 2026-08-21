@@ -1,6 +1,17 @@
 import { z } from "zod";
+import {
+  agentWorkflowStateSchema,
+  type AgentWorkflowState,
+} from "@/modules/agent/workflow-state";
 
 export type ChatRole = "user" | "assistant";
+
+export interface WorkspaceUser {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+}
 
 export type AttachmentKind = "text" | "image" | "pdf";
 
@@ -23,6 +34,8 @@ export interface ChatRequest {
   message: string;
   conversationId: string;
   history: ChatHistoryMessage[];
+  contextSummary?: string;
+  workflowState?: AgentWorkflowState;
   attachments: ChatAttachment[];
 }
 
@@ -31,6 +44,9 @@ export interface SourceDocument {
   citationIndex: number;
   title: string;
   heading: string;
+  /** Present on v2 sources; optional for conversations persisted before the v2 index. */
+  breadcrumb?: string[];
+  path?: string;
   service: string;
   url: string;
   snippet: string;
@@ -39,10 +55,23 @@ export interface SourceDocument {
 
 export type Confidence = "high" | "medium" | "low";
 
+export interface SupportTicketDraft {
+  subject: string;
+  body: string;
+}
+
+export interface SupportTicketState {
+  draft: SupportTicketDraft;
+  status: "ready";
+}
+
 export type AgentEvent =
   | { type: "status"; message: string }
   | { type: "sources"; sources: SourceDocument[] }
   | { type: "delta"; text: string }
+  | { type: "quota"; remaining: number; resetsAt: string }
+  | { type: "ticket"; draft: SupportTicketDraft }
+  | { type: "workflow"; state: AgentWorkflowState }
   | {
       type: "meta";
       requestId: string;
@@ -77,6 +106,8 @@ export const chatRequestSchema = z.object({
     )
     .max(16)
     .default([]),
+  contextSummary: z.string().max(4_000).default(""),
+  workflowState: agentWorkflowStateSchema.optional(),
   attachments: z.array(attachmentSchema).max(3).default([]),
 }).superRefine((value, context) => {
   const totalBytes = value.attachments.reduce((sum, attachment) => sum + attachment.size, 0);
@@ -117,6 +148,8 @@ export interface StoredMessage {
     requestId?: string;
     redactionCount?: number;
   };
+  workflow?: AgentWorkflowState;
+  ticket?: SupportTicketState;
 }
 
 export interface Conversation {
@@ -125,4 +158,5 @@ export interface Conversation {
   createdAt: string;
   updatedAt: string;
   messages: StoredMessage[];
+  agentState?: AgentWorkflowState;
 }

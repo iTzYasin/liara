@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
-import type { ChatRequest } from "@/modules/chat/types";
+import type { ChatRequest, Confidence } from "@/modules/chat/types";
 import { LruTtlCache } from "@/modules/infra/lru-ttl-cache";
 import { normalizePersian } from "@/modules/retrieval/docs-retriever";
 
 interface CachedResponse {
   text: string;
+  intent?: string;
+  confidence?: Confidence;
 }
 
 const privateSignals = [
@@ -26,9 +28,14 @@ export function isPublicCacheableRequest(request: ChatRequest, redactionCount: n
     && !privateSignals.some((pattern) => pattern.test(message));
 }
 
-export function responseCacheKey(message: string, sourceIds: string[], model: string) {
+export function responseCacheKey(
+  message: string,
+  sourceIds: string[],
+  model: string,
+  responseLanguage: string,
+) {
   return createHash("sha256")
-    .update(`${normalizePersian(message)}|${sourceIds.join(",")}|${model}`)
+    .update(`${normalizePersian(message)}|${sourceIds.join(",")}|${model}|${responseLanguage.toLowerCase()}`)
     .digest("hex");
 }
 

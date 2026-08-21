@@ -2,32 +2,87 @@ name: Sync Liara docs index
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [liara-docs-updated]
   schedule:
-    - cron: "23 2 * * *"
+    - cron: "7,22,37,52 * * * *"
 
 permissions:
   contents: write
 
+concurrency:
+  group: sync-liara-docs-index
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      MEILI_API_KEY: ${{ secrets.MEILI_API_KEY }}
+      MEILI_URL: ${{ secrets.MEILI_URL }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out the default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm run docs:sync
+      - name: Check the upstream docs commit
+        id: docs
+        run: node scripts/check-docs-update.mjs
+      - name: Install dependencies
+        if: steps.docs.outputs.changed == 'true'
+        run: npm ci
+      - name: Build the latest docs index
+        if: steps.docs.outputs.changed == 'true'
+        run: npm run docs:sync
+      - name: Verify retrieval quality
+        if: steps.docs.outputs.changed == 'true'
+        run: npm run golden:eval
+      - name: Converge Meilisearch with an atomic index swap
+        id: meili
+        if: env.MEILI_URL != ''
+        env:
+          MEILI_DEFER_STAGING_MIRROR: ${{ steps.docs.outputs.changed }}
+          MEILI_INDEX_UID: ${{ vars.MEILI_INDEX_UID || 'liara_docs' }}
+          MEILI_PUBLISHED_SOURCE_COMMIT: ${{ steps.docs.outputs.current_commit }}
+          MEILI_STAGING_INDEX_UID: ${{ vars.MEILI_STAGING_INDEX_UID || 'liara_docs_staging' }}
+        run: node scripts/sync-meilisearch.mjs
       - name: Commit a verified index change
+        id: publish
+        if: steps.docs.outputs.changed == 'true'
+        continue-on-error: true
         run: |
-          if git diff --quiet -- data/liara-docs-index.json; then
+          if git diff --quiet -- data/liara-docs-index.json data/retrieval-golden-set.json; then
             echo "Docs index is already current."
             exit 0
           fi
-          npm test -- --run src/modules/retrieval/golden-set.test.ts
           git config user.name "liara-docs-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/liara-docs-index.json
-          git commit -m "chore: sync Liara docs index"
-          git push
+          git add data/liara-docs-index.json data/retrieval-golden-set.json
+          git commit -m "chore: sync Liara docs index to ${{ steps.docs.outputs.upstream_commit }}"
+          git pull --rebase origin "${{ github.event.repository.default_branch }}"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+      - name: Roll back Meilisearch when Git publication fails
+        if: always() && steps.publish.outcome == 'failure' && steps.meili.outputs.swapped == 'true' && env.MEILI_URL != ''
+        env:
+          MEILI_INDEX_UID: ${{ vars.MEILI_INDEX_UID || 'liara_docs' }}
+          MEILI_STAGING_INDEX_UID: ${{ vars.MEILI_STAGING_INDEX_UID || 'liara_docs_staging' }}
+        run: node scripts/sync-meilisearch.mjs --swap-back
+      - name: Fail an unsuccessful Git publication
+        if: always() && steps.publish.outcome == 'failure'
+        run: |
+          echo "The verified corpus was not pushed; any completed Meilisearch swap was rolled back."
+          exit 1
+      - name: Finalize the Meilisearch staging baseline
+        if: steps.publish.outcome == 'success' && steps.meili.outputs.swapped == 'true' && env.MEILI_URL != ''
+        env:
+          MEILI_INDEX_UID: ${{ vars.MEILI_INDEX_UID || 'liara_docs' }}
+          MEILI_STAGING_INDEX_UID: ${{ vars.MEILI_STAGING_INDEX_UID || 'liara_docs_staging' }}
+        run: node scripts/sync-meilisearch.mjs
+      - name: Record local-index-only publishing
+        if: steps.publish.outcome == 'success' && env.MEILI_URL == ''
+        run: echo "MEILI_URL is not configured; publishing the verified local index only." >> "$GITHUB_STEP_SUMMARY"

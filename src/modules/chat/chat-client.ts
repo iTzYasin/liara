@@ -1,5 +1,15 @@
 import type { AgentEvent, ChatRequest } from "@/modules/chat/types";
 
+export class ChatRateLimitError extends Error {
+  constructor(
+    message: string,
+    public readonly lockedUntil: number,
+  ) {
+    super(message);
+    this.name = "ChatRateLimitError";
+  }
+}
+
 function parseEventBlock(block: string): AgentEvent | undefined {
   const dataLine = block
     .split("\n")
@@ -25,7 +35,24 @@ export async function consumeChatStream(
   });
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { message?: string };
+    const body = (await response.json().catch(() => ({}))) as {
+      code?: string;
+      message?: string;
+      retryAfterSeconds?: number;
+      lockedUntil?: string;
+    };
+    if (response.status === 429 || body.code === "RATE_LIMITED") {
+      const parsedLock = body.lockedUntil ? Date.parse(body.lockedUntil) : Number.NaN;
+      const retrySeconds = Number(
+        body.retryAfterSeconds ?? response.headers.get("Retry-After") ?? 60,
+      );
+      throw new ChatRateLimitError(
+        body.message ?? "سقف استفاده شما تکمیل شده است.",
+        Number.isFinite(parsedLock)
+          ? parsedLock
+          : Date.now() + Math.max(1, retrySeconds) * 1_000,
+      );
+    }
     throw new Error(body.message ?? "ارسال پیام با خطا روبه‌رو شد.");
   }
   if (!response.body) throw new Error("پاسخ استریم در دسترس نیست.");

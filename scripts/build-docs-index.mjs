@@ -11,6 +11,19 @@ const docsRoot = process.env.LIARA_DOCS_PATH
 const outputPath = path.join(root, "data", "liara-docs-index.json");
 const maxChunkChars = 3_400;
 const execFileAsync = promisify(execFile);
+const serviceNames = {
+  paas: "پلتفرم ابری",
+  dbaas: "دیتابیس",
+  iaas: "سرور ابری",
+  ai: "هوش مصنوعی",
+  "one-click-apps": "برنامه‌های آماده",
+  "email-server": "ایمیل",
+  "object-storage": "فضای ذخیره‌سازی",
+  "dns-management-system": "DNS و دامنه",
+  references: "تنظیمات و ابزارهای لیارا",
+  mirrors: "میرورهای لیارا",
+  overview: "معرفی لیارا",
+};
 
 async function exists(target) {
   try {
@@ -60,7 +73,7 @@ function splitLongSection(text) {
 }
 
 function parseDocument(filePath, raw) {
-  raw = raw.replace(/^\uFEFF/, "");
+  raw = raw.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
   const relativePath = path.relative(docsRoot, filePath).replaceAll("\\", "/");
   const originalLink = raw.match(/^Original link:\s*(https?:\/\/\S+)/m)?.[1];
   if (!originalLink) return [];
@@ -104,14 +117,24 @@ function parseDocument(filePath, raw) {
           .replace(/[\u200c\s]+/g, "-")
           .replace(/[^\p{L}\p{N}\-_]/gu, "")}`;
     const identity = `${relativePath}:${section.heading}:${index}`;
+    const breadcrumb = [...new Set([
+      serviceNames[service] ?? service,
+      title,
+      section.heading,
+    ])];
     return {
       id: createHash("sha1").update(identity).digest("hex").slice(0, 16),
       title,
       heading: section.heading,
+      breadcrumb,
       service,
       url: `${originalLink}${anchor}`,
       path: relativePath,
       text: section.text,
+      content_hash: createHash("sha256")
+        .update(`${relativePath}\0${section.heading}\0${section.text}`)
+        .digest("hex")
+        .slice(0, 32),
     };
   });
 }
@@ -134,7 +157,7 @@ for (const file of files) {
 let detectedCommit = "unknown";
 try {
   const repositoryRoot = path.resolve(docsRoot, "..", "..");
-  const { stdout } = await execFileAsync("git", ["-C", repositoryRoot, "rev-parse", "--short=7", "HEAD"]);
+  const { stdout } = await execFileAsync("git", ["-C", repositoryRoot, "rev-parse", "HEAD"]);
   detectedCommit = stdout.trim();
 } catch {
   detectedCommit = "unknown";

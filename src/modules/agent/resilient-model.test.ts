@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { LanguageModelAdapter } from "@/modules/agent/agent";
-import { ResilientModelAdapter } from "@/modules/agent/resilient-model";
+import type { LanguageModelAdapter } from "@/modules/agent/model-adapter";
+import { FallbackModelAdapter, ResilientModelAdapter } from "@/modules/agent/resilient-model";
 
 const input = { systemInstruction: "", prompt: "", attachments: [], sources: [] };
 
@@ -56,5 +56,27 @@ describe("ResilientModelAdapter", () => {
     await vi.advanceTimersByTimeAsync(11);
     await assertion;
     vi.useRealTimers();
+  });
+
+  it("falls back after a transient primary failure and reports the used model", async () => {
+    const primary: LanguageModelAdapter = {
+      name: "primary-flash",
+      structuredOutput: true,
+      async *stream() {
+        throw Object.assign(new Error("high demand"), { status: 503 });
+      },
+    };
+    const fallback: LanguageModelAdapter = {
+      name: "fallback-lite",
+      structuredOutput: true,
+      async *stream() {
+        yield "پاسخ پشتیبان";
+      },
+    };
+    const model = new FallbackModelAdapter(primary, fallback);
+
+    await expect(collect(model)).resolves.toBe("پاسخ پشتیبان");
+    expect(model.name).toBe("fallback-lite");
+    expect(model.structuredOutput).toBe(true);
   });
 });

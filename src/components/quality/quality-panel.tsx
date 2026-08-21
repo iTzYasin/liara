@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MetricsSnapshot } from "@/modules/observability/metrics";
 import { Activity, BookOpenText, Clock3, Coins, Database, RefreshCw, ShieldCheck, ThumbsUp, X } from "lucide-react";
 
@@ -10,6 +10,7 @@ interface DocsStatus {
   chunks: number;
   sourceCommit: string;
   generatedAt?: string;
+  backend?: "local" | "meilisearch" | "local-fallback";
 }
 
 interface QualityPanelProps {
@@ -30,7 +31,11 @@ function MetricRail({ label, value, percent }: { label: string; value: string; p
   return (
     <div className="metric-rail">
       <div><span>{label}</span><strong>{value}</strong></div>
-      <i><span style={{ width: `${Math.max(0, Math.min(100, percent))}%` }} /></i>
+      <progress
+        max={100}
+        value={Math.max(0, Math.min(100, percent))}
+        aria-label={`${label}: ${value}`}
+      />
     </div>
   );
 }
@@ -39,6 +44,26 @@ export function QualityPanel({ open, onClose }: QualityPanelProps) {
   const [metrics, setMetrics] = useState<MetricsSnapshot>();
   const [docs, setDocs] = useState<DocsStatus>();
   const [loading, setLoading] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      returnFocusRef.current = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    }
+    if (!open && wasOpenRef.current) {
+      const previous = returnFocusRef.current;
+      const fallback = document.querySelector<HTMLElement>('button[aria-label="بازکردن تاریخچه"]');
+      const target = previous?.isConnected && !previous.closest("[inert]") ? previous : fallback;
+      const frame = window.requestAnimationFrame(() => target?.focus());
+      wasOpenRef.current = open;
+      return () => window.cancelAnimationFrame(frame);
+    }
+    wasOpenRef.current = open;
+  }, [open]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,10 +85,51 @@ export function QualityPanel({ open, onClose }: QualityPanelProps) {
     return () => window.cancelAnimationFrame(frame);
   }, [load, open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
+    const focusable = () => [...(panel?.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ) ?? [])];
+    const frame = window.requestAnimationFrame(() => focusable()[0]?.focus());
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose, open]);
+
   return (
     <>
       {open && <button className="quality-scrim" onClick={onClose} aria-label="بستن گزارش کیفیت" />}
-      <aside className={`quality-panel ${open ? "is-open" : ""}`} role="dialog" aria-modal="true" aria-label="گزارش کیفیت محصول">
+      <aside
+        ref={panelRef}
+        className={`quality-panel ${open ? "is-open" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="گزارش کیفیت محصول"
+        aria-hidden={!open}
+        inert={!open}
+      >
         <header className="quality-header">
           <div>
             <Activity size={19} />
@@ -133,7 +199,7 @@ export function QualityPanel({ open, onClose }: QualityPanelProps) {
 
           <section className="quality-section docs-ledger">
             <h3><BookOpenText size={16} />نسخه مستندات</h3>
-            <div className="docs-ledger-row"><Database size={17} /><span><strong>{fa(docs?.documents ?? 0, 0)} سند · {fa(docs?.chunks ?? 0, 0)} بخش</strong><small>commit {docs?.sourceCommit ?? "—"}</small></span></div>
+            <div className="docs-ledger-row"><Database size={17} /><span><strong>{fa(docs?.documents ?? 0, 0)} سند · {fa(docs?.chunks ?? 0, 0)} بخش</strong><small>commit {docs?.sourceCommit ?? "—"} · جستجو: {docs?.backend === "meilisearch" ? "Meilisearch" : docs?.backend === "local-fallback" ? "ایندکس محلی پشتیبان" : "ایندکس محلی"}</small></span></div>
             <div className="docs-ledger-time">
               آخرین ساخت ایندکس: {docs?.generatedAt ? new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(docs.generatedAt)) : "نامشخص"}
             </div>

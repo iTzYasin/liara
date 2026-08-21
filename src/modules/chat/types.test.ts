@@ -8,6 +8,41 @@ const base = {
 };
 
 describe("chatRequestSchema", () => {
+  it("accepts a bounded rolling context summary", () => {
+    const result = chatRequestSchema.safeParse({
+      ...base,
+      contextSummary: "هدف: رفع خطای deploy؛ اقدام قبلی: بررسی لاگ build",
+      attachments: [],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an oversized rolling context summary", () => {
+    const result = chatRequestSchema.safeParse({
+      ...base,
+      contextSummary: "x".repeat(4_001),
+      attachments: [],
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a bounded resumable agent workflow", () => {
+    const result = chatRequestSchema.safeParse({
+      ...base,
+      workflowState: {
+        goal: "رفع خطای deploy",
+        phase: "active",
+        turnCount: 2,
+        steps: [{ id: "step-1", label: "بررسی لاگ", status: "current" }],
+      },
+      attachments: [],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it("rejects attachment totals above 10 MB", () => {
     const attachment = {
       id: "file",

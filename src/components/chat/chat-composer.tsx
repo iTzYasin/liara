@@ -3,10 +3,12 @@
 import { ChangeEvent, DragEvent, KeyboardEvent, useRef, useState } from "react";
 import type { ChatAttachment, AttachmentKind } from "@/modules/chat/types";
 import { redactSensitiveText } from "@/modules/security/secret-redactor";
-import { FileCode2, FileText, Image as ImageIcon, Paperclip, Send, ShieldCheck, Square, X } from "lucide-react";
+import { Clock3, FileCode2, FileText, Image as ImageIcon, LockKeyhole, Paperclip, Send, ShieldCheck, Square, X } from "lucide-react";
+import { detectBinaryMime } from "@/modules/security/attachment-inspector";
 
 interface ChatComposerProps {
   disabled: boolean;
+  lockRemainingSeconds?: number;
   onSubmit: (message: string, attachments: ChatAttachment[]) => void;
   onStop: () => void;
 }
@@ -38,14 +40,31 @@ function readDataUrl(file: File) {
   });
 }
 
-export function ChatComposer({ disabled, onSubmit, onStop }: ChatComposerProps) {
+function formatRemaining(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes.toLocaleString("fa-IR")}:${remainder.toLocaleString("fa-IR", {
+    minimumIntegerDigits: 2,
+    useGrouping: false,
+  })}`;
+}
+
+export function ChatComposer({
+  disabled,
+  lockRemainingSeconds,
+  onSubmit,
+  onStop,
+}: ChatComposerProps) {
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [notice, setNotice] = useState<string>();
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const limitRemaining = Math.max(0, lockRemainingSeconds ?? 0);
+  const locked = limitRemaining > 0;
 
   const addFiles = async (files: File[]) => {
+    if (locked) return;
     setNotice(undefined);
     const remaining = maxFiles - attachments.length;
     if (remaining <= 0) {
@@ -80,6 +99,13 @@ export function ChatComposer({ disabled, onSubmit, onStop }: ChatComposerProps) 
           redactionCount: result.count,
         });
       } else {
+        const detectedMime = detectBinaryMime(
+          new Uint8Array(await file.slice(0, 16).arrayBuffer()),
+        );
+        if (!detectedMime || detectedMime !== file.type) {
+          setNotice(`محتوای فایل «${file.name}» با نوع یا پسوند آن مطابقت ندارد.`);
+          continue;
+        }
         next.push({
           id: crypto.randomUUID(),
           name: file.name,
@@ -98,7 +124,7 @@ export function ChatComposer({ disabled, onSubmit, onStop }: ChatComposerProps) 
   };
 
   const submit = () => {
-    if (disabled || (!message.trim() && !attachments.length)) return;
+    if (disabled || locked || (!message.trim() && !attachments.length)) return;
     onSubmit(message, attachments);
     setMessage("");
     setAttachments([]);
@@ -120,6 +146,7 @@ export function ChatComposer({ disabled, onSubmit, onStop }: ChatComposerProps) 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragging(false);
+    if (locked) return;
     void addFiles(Array.from(event.dataTransfer.files));
   };
 
@@ -129,6 +156,7 @@ export function ChatComposer({ disabled, onSubmit, onStop }: ChatComposerProps) 
         className={`composer ${dragging ? "is-dragging" : ""}`}
         onDragOver={(event) => {
           event.preventDefault();
+          if (locked) return;
           setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
@@ -160,8 +188,10 @@ export function ChatComposer({ disabled, onSubmit, onStop }: ChatComposerProps) 
           onChange={(event) => setMessage(event.target.value)}
           onKeyDown={onKeyDown}
           rows={1}
-          placeholder="سؤال، خطا یا کاری که می‌خواهی انجام دهی را بنویس…"
+          disabled={locked}
+          placeholder={locked ? "ارسال پیام موقتاً بسته است" : "از دستیار لیارا بپرس…"}
           aria-label="پیام به دستیار لیارا"
+          aria-describedby={locked ? "chat-limit-notice" : undefined}
         />
 
         <div className="composer-actions">
@@ -174,19 +204,27 @@ export function ChatComposer({ disabled, onSubmit, onStop }: ChatComposerProps) 
               accept="text/*,.log,.md,.json,.yaml,.yml,.env,.toml,.ini,.conf,.js,.jsx,.ts,.tsx,.py,.php,.go,.java,.cs,.rb,.sh,.pdf,image/png,image/jpeg,image/webp"
               onChange={onFileChange}
             />
-            <button className="attach-button" onClick={() => fileInput.current?.click()} title="افزودن فایل">
+            <button
+              className="attach-button"
+              onClick={() => fileInput.current?.click()}
+              title="افزودن فایل"
+              disabled={locked}
+            >
               <Paperclip size={18} />
               <span>فایل</span>
             </button>
-            <span className="composer-hint">Enter برای ارسال · Shift+Enter خط جدید</span>
           </div>
           {disabled ? (
-            <button className="send-button stop" onClick={onStop} aria-label="توقف پاسخ">
+            <button className="send-button is-stopping" onClick={onStop} aria-label="توقف پاسخ">
               <Square size={15} fill="currentColor" />
+            </button>
+          ) : locked ? (
+            <button className="send-button is-locked" disabled aria-label="ارسال پیام موقتاً بسته است">
+              <LockKeyhole size={16} />
             </button>
           ) : (
             <button
-              className="send-button"
+              className="send-button is-ready"
               onClick={submit}
               disabled={!message.trim() && !attachments.length}
               aria-label="ارسال پیام"
@@ -197,7 +235,17 @@ export function ChatComposer({ disabled, onSubmit, onStop }: ChatComposerProps) 
         </div>
         {dragging && <div className="drop-overlay">فایل را همین‌جا رها کن</div>}
       </div>
-      <div className="composer-meta">
+      {locked && (
+        <div className="composer-limit" id="chat-limit-notice" role="status" aria-live="polite">
+          <Clock3 size={15} aria-hidden="true" />
+          <span>
+            سقف پیام‌های این بازه تکمیل شده؛ ورودی تا
+            <strong dir="ltr"> {formatRemaining(limitRemaining)} </strong>
+            دیگر باز می‌شود.
+          </span>
+        </div>
+      )}
+      <div className="composer-meta" role="status" aria-live="polite" aria-atomic="true">
         {notice ? <span className="composer-notice"><ShieldCheck size={13} />{notice}</span> : <span>پاسخ‌ها ممکن است خطا داشته باشند؛ منبع را بررسی کنید.</span>}
       </div>
     </div>

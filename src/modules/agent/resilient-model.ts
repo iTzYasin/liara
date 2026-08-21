@@ -1,4 +1,4 @@
-import type { LanguageModelAdapter } from "@/modules/agent/agent";
+import type { LanguageModelAdapter } from "@/modules/agent/model-adapter";
 
 interface ResilienceOptions {
   maxRetries?: number;
@@ -52,6 +52,7 @@ function nextWithTimeout<T>(iterator: AsyncIterator<T>, timeoutMs: number) {
  */
 export class ResilientModelAdapter implements LanguageModelAdapter {
   readonly name: string;
+  readonly structuredOutput?: boolean;
   private consecutiveFailures = 0;
   private circuitOpenUntil = 0;
   private readonly options: Required<ResilienceOptions>;
@@ -61,6 +62,7 @@ export class ResilientModelAdapter implements LanguageModelAdapter {
     options: ResilienceOptions = {},
   ) {
     this.name = inner.name;
+    this.structuredOutput = inner.structuredOutput;
     this.options = {
       maxRetries: options.maxRetries ?? 2,
       timeoutMs: options.timeoutMs ?? 45_000,
@@ -107,5 +109,43 @@ export class ResilientModelAdapter implements LanguageModelAdapter {
         throw error;
       }
     }
+  }
+}
+
+/**
+ * Uses the cheaper fallback only when the primary provider remains
+ * transiently unavailable before emitting any output.
+ */
+export class FallbackModelAdapter implements LanguageModelAdapter {
+  readonly structuredOutput: boolean;
+  private active: LanguageModelAdapter;
+
+  constructor(
+    private readonly primary: LanguageModelAdapter,
+    private readonly fallback: LanguageModelAdapter,
+  ) {
+    this.active = primary;
+    this.structuredOutput = Boolean(primary.structuredOutput && fallback.structuredOutput);
+  }
+
+  get name() {
+    return this.active.name;
+  }
+
+  async *stream(input: Parameters<LanguageModelAdapter["stream"]>[0]): AsyncIterable<string> {
+    this.active = this.primary;
+    let emitted = false;
+    try {
+      for await (const text of this.primary.stream(input)) {
+        emitted = true;
+        yield text;
+      }
+      return;
+    } catch (error) {
+      if (emitted || !isTransientModelError(error)) throw error;
+    }
+
+    this.active = this.fallback;
+    for await (const text of this.fallback.stream(input)) yield text;
   }
 }

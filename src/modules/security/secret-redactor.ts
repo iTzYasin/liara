@@ -36,7 +36,7 @@ export function redactSensitiveText(input: string): RedactionResult {
   );
 
   text = text.replace(
-    /\b((?:api[_-]?key|secret(?:[_-]?key)?|access[_-]?key|password|passwd|token|client[_-]?secret)\s*[:=]\s*["']?)([^\s"';,}]{6,})(["']?)/gi,
+    /\b((?:(?:[a-z][a-z0-9]*)_)*(?:api[_-]?key|secret(?:[_-]?(?:key|access[_-]?key))?|access[_-]?key|password|passwd|token|client[_-]?secret)\s*[:=]\s*["']?)([^\s"';,}]{6,})(["']?)/gi,
     (_, prefix: string, _value: string, suffix: string) =>
       `${prefix}${replacement(state, "credential")}${suffix}`,
   );
