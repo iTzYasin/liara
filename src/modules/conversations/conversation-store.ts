@@ -34,11 +34,12 @@ export class MemoryConversationStore implements ConversationStore {
   }
 }
 
-const databaseName = "liara-assistant";
+const legacyDatabaseName = "liara-assistant";
 const storeName = "conversations";
 const databaseVersion = 1;
+const ownerIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function openDatabase(): Promise<IDBDatabase> {
+function openDatabase(databaseName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(databaseName, databaseVersion);
     request.onupgradeneeded = () => {
@@ -62,8 +63,10 @@ function transactionResult<T>(request: IDBRequest<T>, transaction: IDBTransactio
 }
 
 export class IndexedDbConversationStore implements ConversationStore {
+  constructor(private readonly databaseName = legacyDatabaseName) {}
+
   async list() {
-    const database = await openDatabase();
+    const database = await openDatabase(this.databaseName);
     const transaction = database.transaction(storeName, "readonly");
     const request = transaction.objectStore(storeName).getAll();
     const conversations = await transactionResult(request, transaction);
@@ -74,7 +77,7 @@ export class IndexedDbConversationStore implements ConversationStore {
   }
 
   async get(id: string) {
-    const database = await openDatabase();
+    const database = await openDatabase(this.databaseName);
     const transaction = database.transaction(storeName, "readonly");
     const request = transaction.objectStore(storeName).get(id);
     const result = await transactionResult(request, transaction);
@@ -83,7 +86,7 @@ export class IndexedDbConversationStore implements ConversationStore {
   }
 
   async save(conversation: Conversation) {
-    const database = await openDatabase();
+    const database = await openDatabase(this.databaseName);
     const transaction = database.transaction(storeName, "readwrite");
     const request = transaction.objectStore(storeName).put(conversation);
     await transactionResult(request, transaction);
@@ -91,7 +94,7 @@ export class IndexedDbConversationStore implements ConversationStore {
   }
 
   async remove(id: string) {
-    const database = await openDatabase();
+    const database = await openDatabase(this.databaseName);
     const transaction = database.transaction(storeName, "readwrite");
     const request = transaction.objectStore(storeName).delete(id);
     await transactionResult(request, transaction);
@@ -99,7 +102,7 @@ export class IndexedDbConversationStore implements ConversationStore {
   }
 
   async clear() {
-    const database = await openDatabase();
+    const database = await openDatabase(this.databaseName);
     const transaction = database.transaction(storeName, "readwrite");
     const request = transaction.objectStore(storeName).clear();
     await transactionResult(request, transaction);
@@ -107,12 +110,18 @@ export class IndexedDbConversationStore implements ConversationStore {
   }
 }
 
-let browserStore: ConversationStore | undefined;
+const browserStores = new Map<string, ConversationStore>();
 
-export function getConversationStore() {
-  if (browserStore) return browserStore;
-  browserStore = typeof indexedDB === "undefined"
+export function getConversationStore(ownerId?: string) {
+  if (ownerId && !ownerIdPattern.test(ownerId)) {
+    throw new Error("Invalid conversation owner");
+  }
+  const cacheKey = ownerId ?? "legacy";
+  const existing = browserStores.get(cacheKey);
+  if (existing) return existing;
+  const store = typeof indexedDB === "undefined"
     ? new MemoryConversationStore()
-    : new IndexedDbConversationStore();
-  return browserStore;
+    : new IndexedDbConversationStore(ownerId ? `liara-assistant-user-${ownerId}` : legacyDatabaseName);
+  browserStores.set(cacheKey, store);
+  return store;
 }

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { MemoryConversationStore } from "@/modules/conversations/conversation-store";
+import {
+  getConversationStore,
+  MemoryConversationStore,
+} from "@/modules/conversations/conversation-store";
 
 describe("MemoryConversationStore", () => {
   it("keeps the newest sanitized conversation first", async () => {
@@ -16,5 +19,21 @@ describe("MemoryConversationStore", () => {
     await store.remove("one");
     expect(await store.get("one")).toBeUndefined();
     expect(await store.get("two")).toBeDefined();
+  });
+
+  it("isolates conversations between local account owners", async () => {
+    const saraStore = getConversationStore("11111111-1111-4111-8111-111111111111");
+    const aliStore = getConversationStore("22222222-2222-4222-8222-222222222222");
+
+    await saraStore.save({
+      id: "sara-chat",
+      title: "سارا",
+      createdAt: "1",
+      updatedAt: "1",
+      messages: [],
+    });
+
+    expect(await saraStore.get("sara-chat")).toBeDefined();
+    expect(await aliStore.get("sara-chat")).toBeUndefined();
   });
 });
