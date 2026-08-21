@@ -9,6 +9,9 @@ describe("DocsPreview", () => {
     render(<DocsPreview />);
 
     expect(screen.getByRole("heading", { name: "به مستندات لیارا خوش آمدید" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "دنبال جواب نگردید؛ از دستیار بپرسید." }),
+    ).toBeTruthy();
     expect(screen.getByRole("link", { name: "از دستیار بپرس" }).getAttribute("href"))
       .toBe("/assistant?source=docs");
     expect(screen.getByRole("link", { name: "ورود به پنل کاربری" }).getAttribute("href"))
@@ -18,6 +21,7 @@ describe("DocsPreview", () => {
     expect(
       screen.getByRole("link", { name: "شروع گفتگو با دستیار لیارا" }).getAttribute("href"),
     ).toBe("/assistant?source=docs");
+    expect(screen.getByText("پاسخ بر اساس مستندات")).toBeTruthy();
   });
 
   it("keeps demo search honest and points to the official source", () => {

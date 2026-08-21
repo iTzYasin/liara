@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -9,6 +10,7 @@ import {
   Boxes,
   Cloud,
   Code2,
+  CheckCircle2,
   Database,
   FileCode2,
   Github,
@@ -168,14 +170,53 @@ export function DocsPreview() {
               <span>مستندات سرویس‌های ابری</span>
               <h1>به مستندات لیارا خوش آمدید</h1>
               <p>اینجا خانه‌ی توسعه‌دهندگان است؛ مسیر راه‌اندازی، استقرار و مدیریت سرویس‌ها را پیدا کنید.</p>
-              <div className="docs-demo-hero-agent">
-                <Link href="/assistant?source=docs">
+            </div>
+          </section>
+
+          <section className="docs-assistant-promo" aria-labelledby="docs-assistant-promo-title">
+            <div className="docs-assistant-promo-copy">
+              <div className="docs-assistant-promo-kicker">
+                <span>
+                  <Sparkles size={15} aria-hidden="true" />
+                  دستیار مستندات لیارا
+                </span>
+                <span className="docs-assistant-promo-status">
+                  <i aria-hidden="true" />
+                  آماده‌ی پاسخ‌گویی
+                </span>
+              </div>
+              <h2 id="docs-assistant-promo-title">
+                دنبال جواب نگردید؛{" "}
+                <strong>از دستیار بپرسید.</strong>
+              </h2>
+              <p>
+                سؤال فنی‌تان را به فارسی بنویسید؛ دستیار لیارا مستندات مرتبط را پیدا می‌کند و مسیر بعدی را مرحله‌به‌مرحله نشان می‌دهد.
+              </p>
+              <ul aria-label="امکانات دستیار مستندات">
+                <li><CheckCircle2 size={16} aria-hidden="true" /> پاسخ بر اساس مستندات</li>
+                <li><CheckCircle2 size={16} aria-hidden="true" /> لینک مستقیم به منبع</li>
+                <li><CheckCircle2 size={16} aria-hidden="true" /> راهنمای قدم‌به‌قدم</li>
+              </ul>
+              <div className="docs-assistant-promo-actions">
+                <Link className="docs-assistant-promo-primary" href="/assistant?source=docs">
                   <Bot size={18} aria-hidden="true" />
                   شروع گفتگو با دستیار لیارا
                   <ArrowLeft size={17} aria-hidden="true" />
                 </Link>
-                <small>پاسخ سریع، مستند و همراه با لینک منبع</small>
+                <a className="docs-assistant-promo-secondary" href="#docs-start">
+                  فعلاً راهنماها را می‌بینم
+                </a>
               </div>
+            </div>
+
+            <div className="docs-assistant-promo-art" aria-hidden="true">
+              <Image
+                src={dark ? "/demo/liara-assistant-banner-dark.png" : "/demo/liara-assistant-banner-light.png"}
+                alt=""
+                width={1536}
+                height={1024}
+                sizes="(max-width: 800px) calc(100vw - 28px), 520px"
+              />
             </div>
           </section>
 
