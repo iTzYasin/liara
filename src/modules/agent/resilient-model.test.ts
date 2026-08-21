@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LanguageModelAdapter } from "@/modules/agent/model-adapter";
-import { FallbackModelAdapter, ResilientModelAdapter } from "@/modules/agent/resilient-model";
+import {
+  FallbackModelAdapter,
+  MODEL_RESPONSE_TIMEOUT_MS,
+  ResilientModelAdapter,
+} from "@/modules/agent/resilient-model";
 
 const input = { systemInstruction: "", prompt: "", attachments: [], sources: [] };
 
@@ -54,6 +58,26 @@ describe("ResilientModelAdapter", () => {
     const pending = collect(model);
     const assertion = expect(pending).rejects.toThrow("timed out");
     await vi.advanceTimersByTimeAsync(11);
+    await assertion;
+    vi.useRealTimers();
+  });
+
+  it("allows two minutes for a model response by default", async () => {
+    vi.useFakeTimers();
+    const inner: LanguageModelAdapter = {
+      name: "fake",
+      async *stream() {
+        await new Promise(() => undefined);
+        yield "never";
+      },
+    };
+    const model = new ResilientModelAdapter(inner, { maxRetries: 0 });
+    const pending = collect(model);
+    const assertion = expect(pending).rejects.toThrow("timed out");
+
+    await vi.advanceTimersByTimeAsync(MODEL_RESPONSE_TIMEOUT_MS - 1);
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
     await assertion;
     vi.useRealTimers();
   });

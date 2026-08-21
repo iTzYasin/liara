@@ -1,5 +1,7 @@
 import type { LanguageModelAdapter } from "@/modules/agent/model-adapter";
 
+export const MODEL_RESPONSE_TIMEOUT_MS = 120_000;
+
 interface ResilienceOptions {
   maxRetries?: number;
   timeoutMs?: number;
@@ -65,7 +67,7 @@ export class ResilientModelAdapter implements LanguageModelAdapter {
     this.structuredOutput = inner.structuredOutput;
     this.options = {
       maxRetries: options.maxRetries ?? 2,
-      timeoutMs: options.timeoutMs ?? 45_000,
+      timeoutMs: options.timeoutMs ?? MODEL_RESPONSE_TIMEOUT_MS,
       circuitThreshold: options.circuitThreshold ?? 4,
       circuitResetMs: options.circuitResetMs ?? 30_000,
       baseDelayMs: options.baseDelayMs ?? 240,
