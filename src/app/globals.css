@@ -746,6 +746,7 @@ textarea:focus-visible {
 }
 
 .empty-document-mark {
+  --document-fold-size: 30px;
   position: absolute;
   top: clamp(35px, 10vh, 90px);
   left: 0;
@@ -763,8 +764,8 @@ textarea:focus-visible {
   position: absolute;
   top: 0;
   right: 0;
-  width: 30px;
-  height: 30px;
+  width: var(--document-fold-size);
+  height: var(--document-fold-size);
   border-bottom: 1px solid var(--line-strong);
   border-left: 1px solid var(--line-strong);
   background: var(--paper);
@@ -774,6 +775,7 @@ textarea:focus-visible {
 .empty-document-mark span {
   display: block;
   margin-bottom: 22px;
+  padding-inline-start: var(--document-fold-size);
   color: var(--brand);
   font-size: 11px;
   font-weight: 700;
@@ -2572,6 +2574,7 @@ textarea:focus-visible {
   }
 
   .empty-document-mark {
+    --document-fold-size: 19px;
     top: 30px;
     left: 7px;
     width: 74px;
@@ -2579,11 +2582,6 @@ textarea:focus-visible {
     padding: 14px 11px;
     box-shadow: 7px 8px 0 var(--brand-soft);
     opacity: 0.72;
-  }
-
-  .empty-document-mark::before {
-    width: 19px;
-    height: 19px;
   }
 
   .empty-document-mark span {
