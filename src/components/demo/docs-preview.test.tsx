@@ -18,10 +18,16 @@ describe("DocsPreview", () => {
       .toBe("/panel");
     expect(screen.getByRole("link", { name: "مشاهده مخزن مستندات" }).getAttribute("href"))
       .toBe("https://github.com/liara-cloud/docs");
+    expect(screen.getByRole("link", { name: "دستیار مستندات" }).getAttribute("href"))
+      .toBe("/assistant?source=docs");
     expect(
       screen.getByRole("link", { name: "شروع گفتگو با دستیار لیارا" }).getAttribute("href"),
     ).toBe("/assistant?source=docs");
     expect(screen.getByText("پاسخ بر اساس مستندات")).toBeTruthy();
+
+    const themeButton = screen.getByRole("button", { name: "فعال‌کردن حالت تاریک" });
+    fireEvent.click(themeButton);
+    expect(themeButton.closest(".docs-demo-shell")?.classList.contains("is-dark")).toBe(true);
   });
 
   it("keeps demo search honest and points to the official source", () => {

@@ -51,6 +51,12 @@ const sidebarGroups = [
     items: [
       { label: "Liara CLI", icon: TerminalSquare, href: "#docs-references" },
       { label: "Liara API", icon: Code2, href: "#docs-references" },
+      {
+        label: "دستیار مستندات",
+        icon: Bot,
+        href: "/assistant?source=docs",
+        featured: true,
+      },
     ],
   },
 ] as const;
@@ -109,12 +115,23 @@ export function DocsPreview() {
           {sidebarGroups.map((group) => (
             <section key={group.label} className="docs-demo-sidebar-group">
               <h2>{group.label}</h2>
-              {group.items.map(({ label, href, icon: Icon }) => (
-                <a key={label} href={href} onClick={() => setSidebarOpen(false)}>
-                  <Icon size={17} aria-hidden="true" />
-                  {label}
-                </a>
-              ))}
+              {group.items.map((item) => {
+                const { label, href, icon: Icon } = item;
+                const featured = "featured" in item && item.featured;
+
+                return (
+                  <Link
+                    key={label}
+                    className={featured ? "docs-demo-sidebar-assistant" : undefined}
+                    href={href}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <Icon size={17} aria-hidden="true" />
+                    <span className="docs-demo-sidebar-item-label">{label}</span>
+                    {featured && <span className="docs-demo-sidebar-assistant-badge" aria-hidden="true">AI</span>}
+                  </Link>
+                );
+              })}
             </section>
           ))}
         </nav>

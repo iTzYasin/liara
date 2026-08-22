@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   Archive,
+  ArrowLeft,
   Bell,
   Bot,
   Box,
@@ -86,12 +87,6 @@ export function PanelDashboard() {
       </nav>
 
       <main id="main-content" className="panel-demo-content">
-        <Link className="panel-demo-assistant-pill" href="/assistant?source=panel">
-          <Bot size={18} aria-hidden="true" />
-          دستیار لیارا
-          <span>برای انتخاب و راه‌اندازی سرویس</span>
-        </Link>
-
         <section className="panel-demo-empty" aria-labelledby="panel-empty-title">
           <Image
             className="panel-demo-empty-image"
@@ -123,6 +118,31 @@ export function PanelDashboard() {
           )}
         </section>
       </main>
+
+      <aside className="panel-demo-assistant-floating" aria-labelledby="panel-assistant-title">
+        <div className="panel-demo-assistant-flyout">
+          <span className="panel-demo-assistant-flyout-status">
+            <i aria-hidden="true" /> همیشه در دسترس
+          </span>
+          <h2 id="panel-assistant-title">دستیار هوشمند لیارا</h2>
+          <p>برای انتخاب سرویس و راه‌اندازی پروژه، همین‌جا از دستیار کمک بگیرید.</p>
+          <Link href="/assistant?source=panel">
+            شروع گفتگو با دستیار لیارا
+            <ArrowLeft size={15} aria-hidden="true" />
+          </Link>
+        </div>
+
+        <Link
+          className="panel-demo-assistant-fab"
+          href="/assistant?source=panel"
+          aria-label="بازکردن دستیار هوشمند لیارا"
+          aria-describedby="panel-assistant-title"
+        >
+          <Bot size={24} aria-hidden="true" />
+          <Sparkles className="panel-demo-assistant-fab-spark" size={13} aria-hidden="true" />
+          <span aria-hidden="true" />
+        </Link>
+      </aside>
     </div>
   );
 }

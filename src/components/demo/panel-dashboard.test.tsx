@@ -9,6 +9,14 @@ describe("PanelDashboard", () => {
     render(<PanelDashboard />);
 
     expect(screen.getByRole("heading", { name: "هنوز برنامه‌ای نساخته‌اید" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "دستیار هوشمند لیارا" })).toBeTruthy();
+    const floatingAssistant = screen.getByRole("complementary", {
+      name: "دستیار هوشمند لیارا",
+    });
+    expect(floatingAssistant.querySelector("img")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "بازکردن دستیار هوشمند لیارا" }).getAttribute("href"),
+    ).toBe("/assistant?source=panel");
     const assistantLinks = screen.getAllByRole("link", { name: /دستیار لیارا/ });
     expect(assistantLinks.length).toBeGreaterThanOrEqual(2);
     expect(assistantLinks.every((link) => link.getAttribute("href") === "/assistant?source=panel"))
