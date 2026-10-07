@@ -1,7 +1,7 @@
 {
   "version": "2.1.0",
-  "generatedAt": "2026-10-05T16:12:53.685Z",
-  "sourceCommit": "70f186fb1b5f99be2fa659023f9863813caa5531",
+  "generatedAt": "2026-10-07T13:57:32.396Z",
+  "sourceCommit": "db19bf80ab886ab18e590b6dc468242ab186079d",
   "source": "Liara official docs corpus; scenarios curated from PRD §23",
   "distribution": {
     "direct-single-document": 35,
@@ -443,7 +443,8 @@
         "headings": [
           "آشنایی با افزونه های در دسترس PostgreSQL",
           "افزونه PostGIS چیست؟",
-          "افزونه Pgvector چیست؟"
+          "افزونه Pgvector چیست؟",
+          "نحوه فعال‌سازی افزونه‌ها"
         ],
         "requiredFacts": [
           "مدیریت extensionهای PostgreSQL"
