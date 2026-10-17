@@ -1,7 +1,7 @@
 {
   "version": "2.1.0",
-  "generatedAt": "2026-10-15T15:34:33.221Z",
-  "sourceCommit": "26fd203bf553620b843f849d6836f1926b0bb33a",
+  "generatedAt": "2026-10-17T08:40:32.787Z",
+  "sourceCommit": "c11c03c19b7bf0e51102b16dceb5105b8e341c47",
   "source": "Liara official docs corpus; scenarios curated from PRD §23",
   "distribution": {
     "direct-single-document": 35,
