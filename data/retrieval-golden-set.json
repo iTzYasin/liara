@@ -1,7 +1,7 @@
 {
   "version": "2.1.0",
-  "generatedAt": "2026-10-17T08:40:32.787Z",
-  "sourceCommit": "c11c03c19b7bf0e51102b16dceb5105b8e341c47",
+  "generatedAt": "2026-10-18T14:04:12.257Z",
+  "sourceCommit": "0176cfc189a100bbef01bf2df6c470a704d66c06",
   "source": "Liara official docs corpus; scenarios curated from PRD §23",
   "distribution": {
     "direct-single-document": 35,
@@ -27,7 +27,8 @@
         ],
         "headings": [
           "اضافه کردن دامنه خریداری شده به برنامه",
-          "Cloudflare"
+          "Cloudflare",
+          "ابر آروان"
         ],
         "requiredFacts": [
           "مراحل افزودن دامنه اختصاصی"
@@ -1061,8 +1062,8 @@
         "headings": [
           "اضافه کردن دامنه خریداری شده به برنامه",
           "Cloudflare",
-          "گواهی SSL",
-          "تهیه گواهی SSL در لیارا"
+          "ابر آروان",
+          "گواهی SSL"
         ],
         "requiredFacts": [
           "ترتیب افزودن دامنه و فعال‌سازی SSL"
@@ -3510,7 +3511,8 @@
         ],
         "headings": [
           "اضافه کردن دامنه خریداری شده به برنامه",
-          "Cloudflare"
+          "Cloudflare",
+          "ابر آروان"
         ],
         "requiredFacts": [
           "اتصال دامنه فقط با منبع"
@@ -3808,7 +3810,8 @@
         ],
         "headings": [
           "اضافه کردن دامنه خریداری شده به برنامه",
-          "Cloudflare"
+          "Cloudflare",
+          "ابر آروان"
         ],
         "requiredFacts": [
           "رد منبع جعلی و استفاده از URL رسمی"
